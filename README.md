@@ -13,7 +13,7 @@ Small utility to fetch xe.com rates
   -d, --date= Date to get the rate for, must be in YYYY-MM-DD format
 ```
 
-Short form of xe.com DATE is also supported
+Short form of `xe.com DATE` is also supported
 
 ## Examples
 
