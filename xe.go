@@ -26,7 +26,7 @@ type CurrencyPair struct {
 }
 
 // The crawler
-func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPosts int, db *sql.DB) {
+func crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
 
 	c := colly.NewCollector(
@@ -54,7 +54,11 @@ func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPo
 		log.Fatal("Unable to fetch", xeUrl)
 	}
 
-	return cp
+	if cp.CcyFrom != "" {
+		return cp, nil
+	} else {
+		return cp, errors.New("No rate information for this date, likely incorrect date: " + dt)
+	}
 }
 
 func showHelp() {
@@ -120,7 +124,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rates = crawl(strings.ToUpper(opts.FromCCY), strings.ToUpper(opts.ToCCY), RateDate)
-
-	fmt.Printf("%s to %s on %s at: %.10f\n", rates.CcyFrom, rates.CcyTo, rates.RateDate, rates.Rate)
+	rates, err = crawl(strings.ToUpper(opts.FromCCY), strings.ToUpper(opts.ToCCY), RateDate)
+	if err != nil {
+		log.Print(err)
+		showHelp()
+		return
+	} else {
+		fmt.Printf("%s to %s on %s at: %.10f\n", rates.CcyFrom, rates.CcyTo, rates.RateDate, rates.Rate)
+	}
 }
