@@ -1,9 +1,10 @@
 package main
 
 import (
+	"errors"
+	"flag"
 	"fmt"
 	"github.com/gocolly/colly"
-	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
 	"regexp"
@@ -18,9 +19,10 @@ type Options struct {
 }
 
 type CurrencyPair struct {
-	CcyFrom string
-	CcyTo   string
-	Rate    float64
+	CcyFrom  string
+	CcyTo    string
+	Rate     float64
+	RateDate string
 }
 
 // The crawler
@@ -37,6 +39,7 @@ func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPo
 		if e.ChildText("th > a") == ct {
 			cp.CcyFrom = cf
 			cp.CcyTo = ct
+			cp.RateDate = dt
 			rate, err := strconv.ParseFloat(e.ChildText("td:nth-of-type(2)"), 64)
 			if err == nil {
 				cp.Rate = rate
@@ -64,16 +67,38 @@ func showHelp() {
 	os.Exit(0)
 }
 
+func CheckValidDate(RateDate string) (string, error) {
+	// first replace 'wrong' delimiters, e.g. slashes or dots, with a hyphen
+	re := regexp.MustCompile(`[/.]`)
+	st := re.ReplaceAllString(RateDate, "-")
+
+	re = regexp.MustCompile(`(\d{2,4})-\d{2}-\d{2}$`)
+	if re.MatchString(st) {
+		match := re.FindStringSubmatch(st)
+		if len(match[1]) == 2 { // lazy bitches, dangerous!
+			if st > "79" { // 1980...
+				st = "19" + st
+			} else { // 2000...
+				st = "20" + st
+			}
+		}
+		return st, nil
+	} else {
+		return "", errors.New("Cannot parse date as string, check format: " + RateDate)
+	}
+}
+
 func main() {
 	var opts Options
 	var rates CurrencyPair
 
-	parser := flags.NewParser(&opts, flags.Default)
-	_, err := parser.Parse()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	flag.StringVar(&opts.ToCCY, "t", "USD", "Convert TO, defaults to USD (short)")
+	flag.StringVar(&opts.ToCCY, "to", "USD", "Convert TO, defaults to USD")
+	flag.StringVar(&opts.FromCCY, "f", "RUB", "Convert FROM, defaults to RUB (short)")
+	flag.StringVar(&opts.FromCCY, "from", "RUB", "Convert FROM, defaults to RUB")
+	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
+	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
+	flag.Parse()
 
 	// catching if options parsing did not yield a sensible result
 	if len(opts.RateDate) == 0 {
@@ -90,14 +115,12 @@ func main() {
 		}
 	}
 
-	r, _ := regexp.Compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
-
-	if r.MatchString(opts.RateDate) {
-		rates = crawl(strings.ToUpper(opts.FromCCY), strings.ToUpper(opts.ToCCY), opts.RateDate)
-	} else {
-		showHelp()
-		log.Fatal("Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
+	RateDate, err := CheckValidDate(opts.RateDate)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	fmt.Printf("On %s from: %s to: %s rate: %.10f\n", opts.RateDate, rates.CcyFrom, rates.CcyTo, rates.Rate)
+	rates = crawl(strings.ToUpper(opts.FromCCY), strings.ToUpper(opts.ToCCY), RateDate)
+
+	fmt.Printf("%s to %s on %s at: %.10f\n", rates.CcyFrom, rates.CcyTo, rates.RateDate, rates.Rate)
 }
