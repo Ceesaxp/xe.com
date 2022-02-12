@@ -1,6 +1,6 @@
 # xe.com
 
-Small utility to fetch xe.com rates for a given currency pair and date. In a strict form expects to be called as: `xe.com --from CCY --to CCY --date YYYY-MM-DD`. But a few short forms are also available. 
+Small utility to fetch xe.com rates for a given currency pair and date. In a strict form expects to be called as: `xe.com --from CCY --to CCY --date YYYY-MM-DD`. But a few short forms are also available. `CCY` is an [ISO-4217](https://en.wikipedia.org/wiki/ISO_4217) alphabetic code.
 
 ## Usage
 `xe.com [OPTIONS]`
