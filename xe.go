@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
+	"github.com/gocolly/colly"
+	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
-
-	"github.com/gocolly/colly"
-	"github.com/jessevdk/go-flags"
+	"strings"
 )
 
 type Options struct {
@@ -75,9 +75,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// catching if options parsing did not yield a sensible result
 	if len(opts.RateDate) == 0 {
-		if len(os.Args) > 1 {
+		if len(os.Args) == 2 { // xe.com DATE
 			opts.RateDate = os.Args[1]
+		} else if len(os.Args) == 4 { // xe.com FROM TO DATE
+			opts.FromCCY = os.Args[1]
+			opts.ToCCY = os.Args[2]
+			opts.RateDate = os.Args[3]
+		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
+			opts.RateDate = os.Args[5]
 		} else {
 			showHelp()
 		}
@@ -86,7 +93,7 @@ func main() {
 	r, _ := regexp.Compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
 
 	if r.MatchString(opts.RateDate) {
-		rates = crawl(opts.FromCCY, opts.ToCCY, opts.RateDate)
+		rates = crawl(strings.ToUpper(opts.FromCCY), strings.ToUpper(opts.ToCCY), opts.RateDate)
 	} else {
 		showHelp()
 		log.Fatal("Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
