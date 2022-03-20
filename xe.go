@@ -1,29 +1,32 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"github.com/gocolly/colly"
+	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
-
-	"github.com/gocolly/colly"
-	"github.com/jessevdk/go-flags"
+	"time"
 )
 
+// Options - Command line arguments
 type Options struct {
 	FromCCY  string `long:"from" short:"f" description:"Convert FROM, dafaults to RUB" default:"RUB"`
 	ToCCY    string `long:"to" short:"t" description:"Convert TO, dafaults to USD" default:"USD"`
-	RateDate string `long:"date" short:"d" description:"Date to get the rate for, must be in YYYY-MM-DD format"`
+	RateDate string `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
 }
 
+// CurrencyPair - structure to hold currency pair info
 type CurrencyPair struct {
 	CcyFrom string
 	CcyTo   string
 	Rate    float64
 }
 
-// The crawler
+// The crawler -- fetch page and parse rate info from it
 func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPosts int, db *sql.DB) {
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
 
@@ -54,6 +57,7 @@ func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPo
 	return cp
 }
 
+// Show help message and quit
 func showHelp() {
 	fmt.Println("Usage:\n  xe.com [OPTIONS]\n\n" +
 		"Application Options:\n" +
@@ -62,6 +66,31 @@ func showHelp() {
 		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n\n" +
 		"Short form of xe.com DATE is also supported")
 	os.Exit(0)
+}
+
+// While we ask for a YYYY-MM-DD date, we will understand any other sensible date delimiter (hyphen, slash, dot).
+// We also verify that date looks valid.
+func parseDate(dt string) (string, error) {
+	r, err := regexp.Compile("([0-9]{4})[/.-]*([0-9]{2})[/.-]*([0-9]{2})")
+	if err != nil {
+		return dt, err
+	}
+
+	m := r.FindStringSubmatchIndex(dt)
+
+	if m != nil {
+		validDate := dt[m[2]:m[3]] + "-" + dt[m[4]:m[5]] + "-" + dt[m[6]:m[7]]
+		_, err = time.Parse("2006-01-02", validDate)
+
+		if err != nil {
+			return dt, err
+		}
+
+		return validDate, nil
+
+	}
+
+	return dt, errors.New("No valida date provided: " + dt)
 }
 
 func main() {
@@ -83,14 +112,14 @@ func main() {
 		}
 	}
 
-	r, _ := regexp.Compile("[0-9]{4}-[0-9]{2}-[0-9]{2}")
+	rd, err := parseDate(opts.RateDate)
 
-	if r.MatchString(opts.RateDate) {
-		rates = crawl(opts.FromCCY, opts.ToCCY, opts.RateDate)
-	} else {
+	if err != nil {
 		showHelp()
-		log.Fatal("Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
+		log.Fatal(err, "Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
+	} else {
+		rates = crawl(opts.FromCCY, opts.ToCCY, rd)
 	}
 
-	fmt.Printf("On %s from: %s to: %s rate: %.10f\n", opts.RateDate, rates.CcyFrom, rates.CcyTo, rates.Rate)
+	fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
 }
