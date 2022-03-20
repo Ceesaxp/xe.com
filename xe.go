@@ -2,13 +2,14 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/gocolly/colly"
-	"github.com/jessevdk/go-flags"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -21,13 +22,14 @@ type Options struct {
 
 // CurrencyPair - structure to hold currency pair info
 type CurrencyPair struct {
-	CcyFrom string
-	CcyTo   string
-	Rate    float64
+	CcyFrom  string
+	CcyTo    string
+	Rate     float64
+	RateDate string
 }
 
 // The crawler -- fetch page and parse rate info from it
-func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPosts int, db *sql.DB) {
+func crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
 
 	c := colly.NewCollector(
@@ -40,6 +42,7 @@ func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPo
 		if e.ChildText("th > a") == ct {
 			cp.CcyFrom = cf
 			cp.CcyTo = ct
+			cp.RateDate = dt
 			rate, err := strconv.ParseFloat(e.ChildText("td:nth-of-type(2)"), 64)
 			if err == nil {
 				cp.Rate = rate
@@ -54,7 +57,11 @@ func crawl(cf string, ct string, dt string) CurrencyPair { //limPages int, limPo
 		log.Fatal("Unable to fetch", xeUrl)
 	}
 
-	return cp
+	if cp.CcyFrom != "" {
+		return cp, nil
+	} else {
+		return cp, errors.New("No rate information for this date, likely incorrect date: " + dt)
+	}
 }
 
 // Show help message and quit
@@ -97,16 +104,24 @@ func main() {
 	var opts Options
 	var rates CurrencyPair
 
-	parser := flags.NewParser(&opts, flags.Default)
-	_, err := parser.Parse()
+	flag.StringVar(&opts.ToCCY, "t", "USD", "Convert TO, defaults to USD (short)")
+	flag.StringVar(&opts.ToCCY, "to", "USD", "Convert TO, defaults to USD")
+	flag.StringVar(&opts.FromCCY, "f", "RUB", "Convert FROM, defaults to RUB (short)")
+	flag.StringVar(&opts.FromCCY, "from", "RUB", "Convert FROM, defaults to RUB")
+	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
+	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
+	flag.Parse()
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
+	// catching if options parsing did not yield a sensible result
 	if len(opts.RateDate) == 0 {
-		if len(os.Args) > 1 {
+		if len(os.Args) == 2 { // xe.com DATE
 			opts.RateDate = os.Args[1]
+		} else if len(os.Args) == 4 { // xe.com FROM TO DATE
+			opts.FromCCY = os.Args[1]
+			opts.ToCCY = os.Args[2]
+			opts.RateDate = os.Args[3]
+		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
+			opts.RateDate = os.Args[5]
 		} else {
 			showHelp()
 		}
