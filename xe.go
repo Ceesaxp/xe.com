@@ -9,7 +9,6 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -29,7 +28,7 @@ type CurrencyPair struct {
 }
 
 // The crawler -- fetch page and parse rate info from it
-func crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
+func Crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
 
 	c := colly.NewCollector(
@@ -65,7 +64,7 @@ func crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages i
 }
 
 // Show help message and quit
-func showHelp() {
+func ShowHelp() {
 	fmt.Println("Usage:\n  xe.com [OPTIONS]\n\n" +
 		"Application Options:\n" +
 		"  -f, --from= Convert FROM, dafaults to RUB (default: RUB)\n" +
@@ -77,27 +76,33 @@ func showHelp() {
 
 // While we ask for a YYYY-MM-DD date, we will understand any other sensible date delimiter (hyphen, slash, dot).
 // We also verify that date looks valid.
-func parseDate(dt string) (string, error) {
-	r, err := regexp.Compile("([0-9]{4})[/.-]*([0-9]{2})[/.-]*([0-9]{2})")
-	if err != nil {
-		return dt, err
-	}
-
-	m := r.FindStringSubmatchIndex(dt)
-
-	if m != nil {
-		validDate := dt[m[2]:m[3]] + "-" + dt[m[4]:m[5]] + "-" + dt[m[6]:m[7]]
-		_, err = time.Parse("2006-01-02", validDate)
-
-		if err != nil {
-			return dt, err
+func ParseDate(RateDate string) (string, error) {
+	re := regexp.MustCompile(`(\d{2,4})[./-]*(\d{2})[./-]*(\d{2})$`)
+	if re.MatchString(RateDate) {
+		match := re.FindStringSubmatch(RateDate)
+		if match == nil {
+			return RateDate, errors.New("Can't find valid date")
 		}
 
-		return validDate, nil
+		st := match[1] + "-" + match[2] + "-" + match[3]
+		if len(match[1]) == 2 { // lazy bitches, dangerous!
+			if st > "79" { // 1980...
+				st = "19" + st
+			} else { // 2000...
+				st = "20" + st
+			}
+		}
 
+		_, err := time.Parse("2006-01-02", st)
+
+		if err != nil {
+			log.Print(err)
+			return "", errors.New("Cannot parse date as string, check format: " + RateDate + "\n")
+		}
+
+		return st, nil
 	}
-
-	return dt, errors.New("No valida date provided: " + dt)
+	return "", errors.New("Something when wrong")
 }
 
 func main() {
@@ -123,17 +128,21 @@ func main() {
 		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
 			opts.RateDate = os.Args[5]
 		} else {
-			showHelp()
+			ShowHelp()
 		}
 	}
 
-	rd, err := parseDate(opts.RateDate)
+	rd, err := ParseDate(opts.RateDate)
 
 	if err != nil {
-		showHelp()
-		log.Fatal(err, "Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
+		log.Print(err, "Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
+		ShowHelp()
 	} else {
-		rates = crawl(opts.FromCCY, opts.ToCCY, rd)
+		rates, err = Crawl(opts.FromCCY, opts.ToCCY, rd)
+		if err != nil {
+			log.Print(err)
+			ShowHelp()
+		}
 	}
 
 	fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
