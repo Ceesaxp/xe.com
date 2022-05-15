@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,7 @@ type Options struct {
 	FromCCY  string `long:"from" short:"f" description:"Convert FROM, dafaults to RUB" default:"RUB"`
 	ToCCY    string `long:"to" short:"t" description:"Convert TO, dafaults to USD" default:"USD"`
 	RateDate string `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
+	Strip    bool   `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
 }
 
 // CurrencyPair - structure to hold currency pair info
@@ -29,6 +31,8 @@ type CurrencyPair struct {
 
 // The crawler -- fetch page and parse rate info from it
 func Crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
+	cf = strings.ToUpper(cf)
+	ct = strings.ToUpper(ct)
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
 
 	c := colly.NewCollector(
@@ -69,13 +73,14 @@ func ShowHelp() {
 		"Application Options:\n" +
 		"  -f, --from= Convert FROM, dafaults to RUB (default: RUB)\n" +
 		"  -t, --to=   Convert TO, dafaults to USD (default: USD)\n" +
-		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n\n" +
+		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n" +
+		"  -s, --strip Returns only the rate, good for use for shell scripting\n\n" +
 		"Short form of xe.com DATE is also supported")
 	os.Exit(0)
 }
 
-// While we ask for a YYYY-MM-DD date, we will understand any other sensible date delimiter (hyphen, slash, dot).
-// We also verify that date looks valid.
+// ParseDate : While we ask for a YYYY-MM-DD date, we will understand any other sensible date delimiter
+// (hyphen, slash, dot). We also verify that date looks valid.
 func ParseDate(RateDate string) (string, error) {
 	re := regexp.MustCompile(`(\d{2,4})[./-]*(\d{2})[./-]*(\d{2})$`)
 	if re.MatchString(RateDate) {
@@ -84,7 +89,7 @@ func ParseDate(RateDate string) (string, error) {
 			return RateDate, errors.New("Can't find valid date")
 		}
 
-		st := match[1] + "-" + match[2] + "-" + match[3]
+		st := match[1]
 		if len(match[1]) == 2 { // lazy bitches, dangerous!
 			if st > "79" { // 1980...
 				st = "19" + st
@@ -92,17 +97,18 @@ func ParseDate(RateDate string) (string, error) {
 				st = "20" + st
 			}
 		}
+		st = st + "-" + match[2] + "-" + match[3]
 
 		_, err := time.Parse("2006-01-02", st)
 
 		if err != nil {
 			log.Print(err)
-			return "", errors.New("Cannot parse date as string, check format: " + RateDate + "\n")
+			return "", err
 		}
 
 		return st, nil
 	}
-	return "", errors.New("Something when wrong")
+	return "", errors.New("Wrong date string")
 }
 
 func main() {
@@ -115,6 +121,7 @@ func main() {
 	flag.StringVar(&opts.FromCCY, "from", "RUB", "Convert FROM, defaults to RUB")
 	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
 	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
+	flag.BoolVar(&opts.Strip, "s", false, "Returns only the rate, good for use for shell scripting")
 	flag.Parse()
 
 	// catching if options parsing did not yield a sensible result
@@ -125,6 +132,11 @@ func main() {
 			opts.FromCCY = os.Args[1]
 			opts.ToCCY = os.Args[2]
 			opts.RateDate = os.Args[3]
+		} else if len(os.Args) == 5 { // xe.com -s FROM TO DATE
+			opts.Strip = true
+			opts.FromCCY = os.Args[2]
+			opts.ToCCY = os.Args[3]
+			opts.RateDate = os.Args[4]
 		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
 			opts.RateDate = os.Args[5]
 		} else {
@@ -145,5 +157,10 @@ func main() {
 		}
 	}
 
-	fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
+	// note that we use 8-digit precision here, while we may be getting more than 8 decimals
+	if opts.Strip {
+		fmt.Printf("%.8f", rates.Rate)
+	} else {
+		fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
+	}
 }
