@@ -31,3 +31,7 @@ Short form of `xe.com DATE` or `xe.com FROM TO DATE` are also supported.
 
 `xe.com 21.03.17`
 > \# you **can** do this too, but I am not guessing whether this is `YY.MM.DD` or `DD.MM.YY` -- use at your own risk
+
+`xe.com -s FROM TO DATE`
+
+> \# this form allows chaining with the likes of `bc(1)` to make calculations, e.g. `echo "$(~/bin/xe.com -s rub eur 20220510)*1234.56" | bc `
