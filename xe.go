@@ -4,13 +4,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/gocolly/colly"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gocolly/colly"
 )
 
 // Options - Command line arguments
@@ -86,11 +87,11 @@ func ParseDate(RateDate string) (string, error) {
 	if re.MatchString(RateDate) {
 		match := re.FindStringSubmatch(RateDate)
 		if match == nil {
-			return RateDate, errors.New("Can't find valid date")
+			return RateDate, errors.New("can't find valid date")
 		}
 
 		st := match[1]
-		if len(match[1]) == 2 { // lazy bitches, dangerous!
+		if len(st) == 2 { // lazy bitches, dangerous!
 			if st > "79" { // 1980...
 				st = "19" + st
 			} else { // 2000...
