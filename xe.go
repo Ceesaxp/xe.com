@@ -15,8 +15,8 @@ import (
 
 // Options - Command line arguments
 type Options struct {
-	FromCCY  string `long:"from" short:"f" description:"Convert FROM, dafaults to RUB" default:"RUB"`
-	ToCCY    string `long:"to" short:"t" description:"Convert TO, dafaults to USD" default:"USD"`
+	FromCCY  string `long:"from" short:"f" description:"Convert FROM, defaults to RUB" default:"RUB"`
+	ToCCY    string `long:"to" short:"t" description:"Convert TO, defaults to USD" default:"USD"`
 	RateDate string `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
 	Strip    bool   `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
 }
@@ -29,7 +29,7 @@ type CurrencyPair struct {
 	RateDate string
 }
 
-// The crawler -- fetch page and parse rate info from it
+// Crawl fetch page and parse rate info from it
 func Crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
 	cf = strings.ToUpper(cf)
 	ct = strings.ToUpper(ct)
@@ -63,16 +63,16 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages i
 	if cp.CcyFrom != "" {
 		return cp, nil
 	} else {
-		return cp, errors.New("No rate information for this date, likely incorrect date: " + dt)
+		return cp, errors.New("no rate information for this date, likely incorrect date: " + dt)
 	}
 }
 
-// Show help message and quit
+// ShowHelp – show the help message and quit
 func ShowHelp() {
 	fmt.Println("Usage:\n  xe.com [OPTIONS]\n\n" +
 		"Application Options:\n" +
-		"  -f, --from= Convert FROM, dafaults to RUB (default: RUB)\n" +
-		"  -t, --to=   Convert TO, dafaults to USD (default: USD)\n" +
+		"  -f, --from= Convert FROM, defaults to RUB (default: RUB)\n" +
+		"  -t, --to=   Convert TO, defaults to USD (default: USD)\n" +
 		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n" +
 		"  -s, --strip Returns only the rate, good for use for shell scripting\n\n" +
 		"Short form of xe.com DATE is also supported")
@@ -86,7 +86,7 @@ func ParseDate(RateDate string) (string, error) {
 	if re.MatchString(RateDate) {
 		match := re.FindStringSubmatch(RateDate)
 		if match == nil {
-			return RateDate, errors.New("Can't find valid date")
+			return RateDate, errors.New("can't find valid date")
 		}
 
 		st := match[1]
@@ -108,7 +108,7 @@ func ParseDate(RateDate string) (string, error) {
 
 		return st, nil
 	}
-	return "", errors.New("Wrong date string")
+	return "", errors.New("wrong date string")
 }
 
 func main() {
