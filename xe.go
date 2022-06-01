@@ -4,13 +4,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/gocolly/colly"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gocolly/colly"
 )
 
 // Options - Command line arguments
@@ -90,7 +91,7 @@ func ParseDate(RateDate string) (string, error) {
 		}
 
 		st := match[1]
-		if len(match[1]) == 2 { // lazy bitches, dangerous!
+		if len(st) == 2 { // lazy bitches, dangerous!
 			if st > "79" { // 1980...
 				st = "19" + st
 			} else { // 2000...
