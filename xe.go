@@ -16,10 +16,11 @@ import (
 
 // Options - Command line arguments
 type Options struct {
-	FromCCY  string `long:"from" short:"f" description:"Convert FROM, defaults to RUB" default:"RUB"`
-	ToCCY    string `long:"to" short:"t" description:"Convert TO, defaults to USD" default:"USD"`
-	RateDate string `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
-	Strip    bool   `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
+	FromCCY       string  `long:"from" short:"f" description:"Convert FROM, defaults to RUB" default:"RUB"`
+	ToCCY         string  `long:"to" short:"t" description:"Convert TO, defaults to USD" default:"USD"`
+	RateDate      string  `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
+	Strip         bool    `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
+	ConvertAmount float64 `long:"amount" short:"a" description:"Amount to covert"`
 }
 
 // CurrencyPair - structure to hold currency pair info
@@ -31,7 +32,7 @@ type CurrencyPair struct {
 }
 
 // Crawl fetch page and parse rate info from it
-func Crawl(cf string, ct string, dt string) (CurrencyPair, error) { //limPages int, limPosts int, db *sql.DB) {
+func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 	cf = strings.ToUpper(cf)
 	ct = strings.ToUpper(ct)
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
@@ -75,7 +76,8 @@ func ShowHelp() {
 		"  -f, --from= Convert FROM, defaults to RUB (default: RUB)\n" +
 		"  -t, --to=   Convert TO, defaults to USD (default: USD)\n" +
 		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n" +
-		"  -s, --strip Returns only the rate, good for use for shell scripting\n\n" +
+		"  -s, --strip Returns only the rate, good for use for shell scripting\n" +
+		"  -a, --amount Optionally, provide amount to convert\n\n" +
 		"Short form of xe.com DATE is also supported")
 	os.Exit(0)
 }
@@ -123,6 +125,8 @@ func main() {
 	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
 	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
 	flag.BoolVar(&opts.Strip, "s", false, "Returns only the rate, good for use for shell scripting")
+	flag.Float64Var(&opts.ConvertAmount, "a", 0, "Optionally, provide amount to convert")
+	flag.Float64Var(&opts.ConvertAmount, "amount", 0, "Optionally, provide amount to convert")
 	flag.Parse()
 
 	// catching if options parsing did not yield a sensible result
@@ -133,6 +137,11 @@ func main() {
 			opts.FromCCY = os.Args[1]
 			opts.ToCCY = os.Args[2]
 			opts.RateDate = os.Args[3]
+		} else if len(os.Args) == 5 && os.Args[1] != "-s" { // xe.com FROM TO DATE AMOUNT
+			opts.FromCCY = os.Args[1]
+			opts.ToCCY = os.Args[2]
+			opts.RateDate = os.Args[3]
+			opts.ConvertAmount, _ = strconv.ParseFloat(os.Args[4], 64)
 		} else if len(os.Args) == 5 { // xe.com -s FROM TO DATE
 			opts.Strip = true
 			opts.FromCCY = os.Args[2]
@@ -140,7 +149,7 @@ func main() {
 			opts.RateDate = os.Args[4]
 		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
 			opts.RateDate = os.Args[5]
-		} else {
+		} else { // When all else fails, show help
 			ShowHelp()
 		}
 	}
@@ -161,6 +170,9 @@ func main() {
 	// note that we use 8-digit precision here, while we may be getting more than 8 decimals
 	if opts.Strip {
 		fmt.Printf("%.8f", rates.Rate)
+	} else if opts.ConvertAmount > 0 {
+		fmt.Printf("%s %s %.2f = %s %.2f\n", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
+			opts.ToCCY, opts.ConvertAmount*rates.Rate)
 	} else {
 		fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
 	}
