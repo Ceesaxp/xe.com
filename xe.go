@@ -59,7 +59,7 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 
 	err := c.Visit(xeUrl)
 	if err != nil {
-		log.Fatal("Unable to fetch", xeUrl)
+		log.Fatal("Unable to fetch ", xeUrl)
 	}
 
 	if cp.CcyFrom != "" {
@@ -85,7 +85,8 @@ func ShowHelp() {
 // ParseDate : While we ask for a YYYY-MM-DD date, we will understand any other sensible date delimiter
 // (hyphen, slash, dot). We also verify that date looks valid.
 func ParseDate(RateDate string) (string, error) {
-	re := regexp.MustCompile(`(\d{2,4})[./-]*(\d{2})[./-]*(\d{2})$`)
+	re := regexp.MustCompile(`^(\d{2}|\d{4})[./-]*(\d{2})[./-]*(\d{2})$`)
+	// ?: - non-capturing group, \d{2} - 2 digits, | - or, \d{4} - 4 digits
 	if re.MatchString(RateDate) {
 		match := re.FindStringSubmatch(RateDate)
 		if match == nil {
@@ -109,7 +110,13 @@ func ParseDate(RateDate string) (string, error) {
 			return "", err
 		}
 
-		return st, nil
+		// set to today's date
+		t := time.Now()
+		if st <= t.Format("2006-01-02") {
+			return st, nil
+		} else {
+			return "", errors.New("provided date is in future")
+		}
 	}
 	return "", errors.New("wrong date string")
 }
