@@ -17,6 +17,16 @@ Small utility to fetch xe.com rates for a given currency pair and date. In a str
 
 Short form of `xe.com DATE` or `xe.com FROM TO DATE` are also supported.
 
+## Environment
+
+You can set variable `XE_CCCY_FROM` and `XE_CCY_TO` in order to define your default from/to pair. Add this to
+your `.bashrc` to have default pair EUR/USD:
+
+```shell
+export XE_CCY_FROM=EUR
+export XE_CCY_TO=USD
+```
+
 ## Examples
 
 `xe.com -f USD -t GBP -d 2021-03-17`
