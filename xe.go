@@ -86,7 +86,7 @@ func ShowHelp() {
 // (hyphen, slash, dot). We also verify that date looks valid.
 func ParseDate(RateDate string) (string, error) {
 	re := regexp.MustCompile(`^(\d{2}|\d{4})[./-]*(\d{2})[./-]*(\d{2})$`)
-	// ?: - non-capturing group, \d{2} - 2 digits, | - or, \d{4} - 4 digits
+	// (\d{2} - 2 digits, | - or, \d{4} - 4 digits)
 	if re.MatchString(RateDate) {
 		match := re.FindStringSubmatch(RateDate)
 		if match == nil {
@@ -125,10 +125,20 @@ func main() {
 	var opts Options
 	var rates CurrencyPair
 
-	flag.StringVar(&opts.ToCCY, "t", "USD", "Convert TO, defaults to USD (short)")
-	flag.StringVar(&opts.ToCCY, "to", "USD", "Convert TO, defaults to USD")
-	flag.StringVar(&opts.FromCCY, "f", "RUB", "Convert FROM, defaults to RUB (short)")
-	flag.StringVar(&opts.FromCCY, "from", "RUB", "Convert FROM, defaults to RUB")
+	envFromCcy := os.Getenv("XE_CCY_FROM")
+	if envFromCcy == "" {
+		envFromCcy = "RUB"
+	}
+
+	envToCcy := os.Getenv("XE_CCY_TO")
+	if envToCcy == "" {
+		envToCcy = "USD"
+	}
+
+	flag.StringVar(&opts.ToCCY, "t", envToCcy, "Convert TO, defaults to USD (short)")
+	flag.StringVar(&opts.ToCCY, "to", envToCcy, "Convert TO, defaults to USD")
+	flag.StringVar(&opts.FromCCY, "f", envFromCcy, "Convert FROM, defaults to RUB (short)")
+	flag.StringVar(&opts.FromCCY, "from", envFromCcy, "Convert FROM, defaults to RUB")
 	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
 	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
 	flag.BoolVar(&opts.Strip, "s", false, "Returns only the rate, good for use for shell scripting")
