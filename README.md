@@ -8,14 +8,14 @@ Small utility to fetch xe.com rates for a given currency pair and date. In a str
 ## Application Options
 
 ```
-  -f, --from=   Convert FROM, dafaults to RUB (default: RUB)
-  -t, --to=     Convert TO, dafaults to USD (default: USD)
-  -d, --date=   Date to get the rate for, must be in YYYY-MM-DD format
-  -s, --strip   Strip the trailing zeros from the result
-  -a, --amount= Amount to convert, defaults to 1 (default: 1)
+  -f, --from-ccy      Convert FROM, dafaults to RUB (default: RUB)
+  -t, --to-ccy        Convert TO, dafaults to USD (default: USD)
+  -d, --date=         Date to get the rate for, must be in YYYY-MM-DD format
+  -s, --strip-extras  Strip the trailing zeros from the result
+  -a, --amount        Amount to convert, defaults to 1 (default: 1)
 ```
 
-Short form of `xe.com DATE` or `xe.com FROM TO DATE` are also supported.
+Short form of `xe.com <DATE>` or `xe.com <FROM> <TO> <DATE>` are also supported.
 
 ## Environment
 
