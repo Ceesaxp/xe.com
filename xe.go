@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
+	flag "github.com/spf13/pflag"
 	"log"
 	"os"
 	"regexp"
@@ -14,6 +14,8 @@ import (
 	"github.com/gocolly/colly"
 )
 
+var version = "0.0.2"
+
 // Options - Command line arguments
 type Options struct {
 	FromCCY       string  `long:"from" short:"f" description:"Convert FROM, defaults to RUB" default:"RUB"`
@@ -21,6 +23,7 @@ type Options struct {
 	RateDate      string  `long:"date" short:"d" description:"Date to get the FX rate for, must be in YYYY-MM-DD format"`
 	Strip         bool    `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
 	ConvertAmount float64 `long:"amount" short:"a" description:"Amount to covert"`
+	Version       bool    `long:"version" short:"v" description:"Show version and quit"`
 }
 
 // CurrencyPair - structure to hold currency pair info
@@ -135,16 +138,18 @@ func main() {
 		envToCcy = "USD"
 	}
 
-	flag.StringVar(&opts.ToCCY, "t", envToCcy, "Convert TO, defaults to USD (short)")
-	flag.StringVar(&opts.ToCCY, "to", envToCcy, "Convert TO, defaults to USD")
-	flag.StringVar(&opts.FromCCY, "f", envFromCcy, "Convert FROM, defaults to RUB (short)")
-	flag.StringVar(&opts.FromCCY, "from", envFromCcy, "Convert FROM, defaults to RUB")
-	flag.StringVar(&opts.RateDate, "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
-	flag.StringVar(&opts.RateDate, "date", "", "Date to get the rate for, must be in YYYY-MM-DD format")
-	flag.BoolVar(&opts.Strip, "s", false, "Returns only the rate, good for use for shell scripting")
-	flag.Float64Var(&opts.ConvertAmount, "a", 0, "Optionally, provide amount to convert")
-	flag.Float64Var(&opts.ConvertAmount, "amount", 0, "Optionally, provide amount to convert")
+	flag.StringVarP(&opts.ToCCY, "to-ccy", "t", envToCcy, "Convert TO, defaults to USD (short)")
+	flag.StringVarP(&opts.FromCCY, "from-ccy", "f", envFromCcy, "Convert FROM, defaults to RUB (short)")
+	flag.StringVarP(&opts.RateDate, "date", "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
+	flag.BoolVarP(&opts.Strip, "strip-extra", "s", false, "Returns only the rate, good for use for shell scripting")
+	flag.Float64VarP(&opts.ConvertAmount, "amount", "a", 0, "Optionally, provide amount to convert")
+	flag.BoolVarP(&opts.Version, "version", "v", false, "Print version information and quit")
 	flag.Parse()
+
+	if opts.Version {
+		fmt.Println("xe.com version", version)
+		os.Exit(0)
+	}
 
 	// catching if options parsing did not yield a sensible result
 	if len(opts.RateDate) == 0 {
