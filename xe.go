@@ -3,13 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	flag "github.com/spf13/pflag"
 	"log"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	flag "github.com/spf13/pflag"
 
 	"github.com/gocolly/colly"
 )
@@ -24,6 +25,8 @@ type Options struct {
 	Strip         bool    `long:"strip" short:"s" description:"Remove all clutter and return only rate"`
 	ConvertAmount float64 `long:"amount" short:"a" description:"Amount to covert"`
 	Version       bool    `long:"version" short:"v" description:"Show version and quit"`
+	Math          string  `long:"math" short:"m" description:"Perform math operations"`
+	ShowRate      bool    `long:"show-rate" short:"R" description:"Always show rate only"`
 }
 
 // CurrencyPair - structure to hold currency pair info
@@ -76,11 +79,13 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 func ShowHelp() {
 	fmt.Println("Usage:\n  xe.com [OPTIONS]\n\n" +
 		"Application Options:\n" +
-		"  -f, --from= Convert FROM, defaults to RUB (default: RUB)\n" +
-		"  -t, --to=   Convert TO, defaults to USD (default: USD)\n" +
-		"  -d, --date= Date to get the rate for, must be in YYYY-MM-DD format\n" +
-		"  -s, --strip Returns only the rate, good for use for shell scripting\n" +
-		"  -a, --amount Optionally, provide amount to convert\n\n" +
+		"  -f, --from=       Convert FROM, defaults to RUB (default: RUB)\n" +
+		"  -t, --to=         Convert TO, defaults to USD (default: USD)\n" +
+		"  -d, --date=       Date to get the rate for, must be in YYYY-MM-DD format\n" +
+		"  -s, --strip       Returns only the rate, good for use for shell scripting\n" +
+		"  -a, --amount      Optionally, provide amount to convert\n\n" +
+		"  -m, --math <expr> Calculate the amount from the expression <expr>, then treat as -a\n\n" +
+		"  -R, --show-rate   Always show rate" +
 		"Short form of xe.com DATE is also supported")
 	os.Exit(0)
 }
@@ -124,6 +129,14 @@ func ParseDate(RateDate string) (string, error) {
 	return "", errors.New("wrong date string")
 }
 
+// HandleMath - handle math expression
+func HandleMath(expr string) float64 {
+	return 0.0
+}
+
+// main is the entry point of the xe.com currency converter program.
+// It parses command line arguments, retrieves currency exchange rates from xe.com,
+// and outputs the converted amount or exchange rate.
 func main() {
 	var opts Options
 	var rates CurrencyPair
@@ -144,6 +157,8 @@ func main() {
 	flag.BoolVarP(&opts.Strip, "strip-extra", "s", false, "Returns only the rate, good for use for shell scripting")
 	flag.Float64VarP(&opts.ConvertAmount, "amount", "a", 0, "Optionally, provide amount to convert")
 	flag.BoolVarP(&opts.Version, "version", "v", false, "Print version information and quit")
+	flag.StringVarP(&opts.Math, "math", "m", "", "Calculate the amount from the expression <expr>, then treat as -a")
+	flag.BoolVarP(&opts.ShowRate, "show-rate", "R", false, "Always show rate")
 	flag.Parse()
 
 	if opts.Version {
@@ -151,9 +166,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// catching if options parsing did not yield a sensible result
-	if len(opts.RateDate) == 0 {
-		if len(os.Args) == 2 { // xe.com DATE
+	if opts.Math != "" {
+		opts.ConvertAmount = HandleMath(opts.Math)
+	}
+
+	// We expect that when called with option flags we get sensible request, but if a short form is used, we need to guess.
+	// So, this here is for catching if options parsing did not yield a sensible result or we have a mixed call,
+	// like xe.com -s FROM TO DATE
+	if len(opts.RateDate) == 0 { // if date is not specified, we will use today's date
+		if len(os.Args) == 2 { // assuming xe.com DATE and default currencies
 			opts.RateDate = os.Args[1]
 		} else if len(os.Args) == 4 { // xe.com FROM TO DATE
 			opts.FromCCY = os.Args[1]
@@ -193,8 +214,11 @@ func main() {
 	if opts.Strip {
 		fmt.Printf("%.8f", rates.Rate)
 	} else if opts.ConvertAmount > 0 {
-		fmt.Printf("%s %s %.2f = %s %.2f\n", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
+		fmt.Printf("%s %s %.2f = %s %.2f", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
 			opts.ToCCY, opts.ConvertAmount*rates.Rate)
+		if opts.ShowRate {
+			fmt.Printf(" (rate: %.8f)\n", rates.Rate)
+		}
 	} else {
 		fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
 	}
