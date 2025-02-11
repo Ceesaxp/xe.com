@@ -8,18 +8,21 @@ Small utility to fetch xe.com rates for a given currency pair and date. In a str
 ## Application Options
 
 ```
-  -f, --from-ccy      Convert FROM, dafaults to RUB (default: RUB)
-  -t, --to-ccy        Convert TO, dafaults to USD (default: USD)
-  -d, --date=         Date to get the rate for, must be in YYYY-MM-DD format
-  -s, --strip-extras  Strip the trailing zeros from the result
-  -a, --amount        Amount to convert, defaults to 1 (default: 1)
+  -f, --from-ccy      Convert FROM, defaults to RUB (default: RUB)
+  -t, --to-ccy        Convert TO, defaults to USD (default: USD)
+  -d, --date          Date to get the rate for, must be in YYYY-MM-DD format
+  -s, --strip-extra   Returns only the rate, good for use for shell scripting
+  -a, --amount        Optionally, provide amount to convert
+  -m, --math <expr>   Calculate the amount from the expression <expr>, then treat as -a
+  -R, --show-rate     Always show rate
+  -v, --version       Print version information and quit
 ```
 
 Short form of `xe.com <DATE>` or `xe.com <FROM> <TO> <DATE>` are also supported.
 
 ## Environment
 
-You can set variable `XE_CCCY_FROM` and `XE_CCY_TO` in order to define your default from/to pair. Add this to
+You can set variables `XE_CCY_FROM` and `XE_CCY_TO` in order to define your default from/to pair. Add this to
 your `.bashrc` to have default pair EUR/USD:
 
 ```shell
@@ -51,3 +54,17 @@ export XE_CCY_TO=USD
 `xe.com rub eur 20220510 1234.56`
 
 > \# will convert from RUB amount of 1234.56 to EUR with a rate as of 10 May 2022
+
+## Supported Currencies
+
+The tool supports common ISO 4217 currency codes including:
+- USD (US Dollar)
+- EUR (Euro) 
+- GBP (British Pound)
+- JPY (Japanese Yen)
+- AUD (Australian Dollar)
+- CAD (Canadian Dollar)
+- CHF (Swiss Franc)
+- CNY (Chinese Yuan)
+- RUB (Russian Ruble)
+- INR (Indian Rupee)

@@ -15,7 +15,22 @@ import (
 	"github.com/gocolly/colly"
 )
 
-var version = "0.0.2"
+var version = "0.0.3"
+
+const (
+    envFromCcyKey = "XE_CCY_FROM"
+    envToCcyKey   = "XE_CCY_TO"
+    defaultFromCcy = "RUB"
+    defaultToCcy  = "USD"
+)
+
+// Valid ISO 4217 currency codes (common ones - expand as needed)
+var validCurrencies = map[string]bool{
+    "USD": true, "EUR": true, "GBP": true, "JPY": true, "AUD": true,
+    "CAD": true, "CHF": true, "CNY": true, "RUB": true, "INR": true,
+	"KZT": true, "PLN": true, "RSD": true, "CZK": true,
+	// Add more as needed
+}
 
 // Options - Command line arguments
 type Options struct {
@@ -37,8 +52,13 @@ type CurrencyPair struct {
 	RateDate string
 }
 
-// Crawl fetch page and parse rate info from it
+// Crawl fetches page and parses rate info from it
 func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
+	// Validate date format first
+	if _, err := time.Parse("2006-01-02", dt); err != nil {
+		return CurrencyPair{}, fmt.Errorf("invalid date format: %v", err)
+	}
+
 	cf = strings.ToUpper(cf)
 	ct = strings.ToUpper(ct)
 	xeUrl := "https://www.xe.com/currencytables/?from=" + cf + "&date=" + dt
@@ -48,6 +68,7 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 	)
 
 	var cp CurrencyPair
+	var scrapeErr error
 
 	c.OnHTML("div#table-section > section > div > div > table > tbody > tr", func(e *colly.HTMLElement) {
 		if e.ChildText("th > a") == ct {
@@ -55,24 +76,27 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 			cp.CcyTo = ct
 			cp.RateDate = dt
 			rate, err := strconv.ParseFloat(e.ChildText("td:nth-of-type(2)"), 64)
-			if err == nil {
-				cp.Rate = rate
-			} else {
-				log.Fatal(err)
+			if err != nil {
+				scrapeErr = fmt.Errorf("failed to parse rate: %w", err)
+				return
 			}
+			cp.Rate = rate
 		}
 	})
 
-	err := c.Visit(xeUrl)
-	if err != nil {
-		log.Fatal("Unable to fetch ", xeUrl)
+	if err := c.Visit(xeUrl); err != nil {
+		return cp, fmt.Errorf("failed to fetch %s: %w", xeUrl, err)
 	}
 
-	if cp.CcyFrom != "" {
-		return cp, nil
-	} else {
-		return cp, errors.New("no rate information for this date, likely incorrect date: " + dt)
+	if scrapeErr != nil {
+		return cp, scrapeErr
 	}
+
+	if cp.CcyFrom == "" {
+		return cp, fmt.Errorf("no rate information for date %s", dt)
+	}
+
+	return cp, nil
 }
 
 // ShowHelp – show the help message and quit
@@ -129,97 +153,141 @@ func ParseDate(RateDate string) (string, error) {
 	return "", errors.New("wrong date string")
 }
 
+// validateCurrency checks if the provided currency code is valid
+func validateCurrency(ccy string) error {
+    ccy = strings.ToUpper(ccy)
+    if !validCurrencies[ccy] {
+        return fmt.Errorf("invalid currency code: %s", ccy)
+    }
+    return nil
+}
+
+// parseCommandLineArgs parses and validates command line arguments
+func parseCommandLineArgs() (Options, error) {
+    var opts Options
+
+    envFromCcy := os.Getenv(envFromCcyKey)
+    if envFromCcy == "" {
+        envFromCcy = defaultFromCcy
+    }
+
+    envToCcy := os.Getenv(envToCcyKey)
+    if envToCcy == "" {
+        envToCcy = defaultToCcy
+    }
+
+    flag.StringVarP(&opts.ToCCY, "to-ccy", "t", envToCcy, "Convert TO, defaults to USD (short)")
+    flag.StringVarP(&opts.FromCCY, "from-ccy", "f", envFromCcy, "Convert FROM, defaults to RUB (short)")
+    flag.StringVarP(&opts.RateDate, "date", "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
+    flag.BoolVarP(&opts.Strip, "strip-extra", "s", false, "Returns only the rate, good for use for shell scripting")
+    flag.Float64VarP(&opts.ConvertAmount, "amount", "a", 0, "Optionally, provide amount to convert")
+    flag.BoolVarP(&opts.Version, "version", "v", false, "Print version information and quit")
+    flag.StringVarP(&opts.Math, "math", "m", "", "Calculate the amount from the expression <expr>, then treat as -a")
+    flag.BoolVarP(&opts.ShowRate, "show-rate", "R", false, "Always show rate")
+    flag.Parse()
+
+    return opts, validateOptions(opts)
+}
+
+// validateOptions validates the parsed command line options
+func validateOptions(opts Options) error {
+    if err := validateCurrency(opts.FromCCY); err != nil {
+        return fmt.Errorf("from currency error: %w", err)
+    }
+    if err := validateCurrency(opts.ToCCY); err != nil {
+        return fmt.Errorf("to currency error: %w", err)
+    }
+    if opts.ConvertAmount < 0 {
+        return errors.New("amount cannot be negative")
+    }
+    if opts.FromCCY == opts.ToCCY {
+        return errors.New("from and to currencies must be different")
+    }
+    return nil
+}
+
+// handleShortFormArgs processes arguments when used in short form
+func handleShortFormArgs(opts *Options) {
+    if len(opts.RateDate) == 0 {
+        switch len(os.Args) {
+        case 2: // xe.com DATE
+            opts.RateDate = os.Args[1]
+        case 4: // xe.com FROM TO DATE
+            opts.FromCCY = os.Args[1]
+            opts.ToCCY = os.Args[2]
+            opts.RateDate = os.Args[3]
+        case 5:
+            if os.Args[1] == "-s" { // xe.com -s FROM TO DATE
+                opts.Strip = true
+                opts.FromCCY = os.Args[2]
+                opts.ToCCY = os.Args[3]
+                opts.RateDate = os.Args[4]
+            } else { // xe.com FROM TO DATE AMOUNT
+                opts.FromCCY = os.Args[1]
+                opts.ToCCY = os.Args[2]
+                opts.RateDate = os.Args[3]
+                opts.ConvertAmount, _ = strconv.ParseFloat(os.Args[4], 64)
+            }
+        case 6: // xe.com -f FROM -t TO DATE
+            opts.RateDate = os.Args[5]
+        default:
+            ShowHelp()
+        }
+    }
+}
+
+// formatOutput formats and prints the final output based on options
+func formatOutput(opts Options, rates CurrencyPair) {
+    if opts.Strip {
+        fmt.Printf("%.8f", rates.Rate)
+    } else if opts.ConvertAmount > 0 {
+        fmt.Printf("%s %s %.2f = %s %.2f", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
+            opts.ToCCY, opts.ConvertAmount*rates.Rate)
+        if opts.ShowRate {
+            fmt.Printf(" (rate: %.8f)\n", rates.Rate)
+        }
+    } else {
+        fmt.Printf("%s rate: %.8f %s per 1 %s\n", rates.RateDate, rates.Rate, rates.CcyFrom, rates.CcyTo)
+    }
+}
+
 // HandleMath - handle math expression
 func HandleMath(expr string) float64 {
-	return 0.0
+    return 0.0
 }
 
 // main is the entry point of the xe.com currency converter program.
 // It parses command line arguments, retrieves currency exchange rates from xe.com,
 // and outputs the converted amount or exchange rate.
 func main() {
-	var opts Options
-	var rates CurrencyPair
+    opts, err := parseCommandLineArgs()
+    if err != nil {
+        log.Print(err)
+        ShowHelp()
+    }
 
-	envFromCcy := os.Getenv("XE_CCY_FROM")
-	if envFromCcy == "" {
-		envFromCcy = "RUB"
-	}
+    if opts.Version {
+        fmt.Println("xe.com version", version)
+        os.Exit(0)
+    }
 
-	envToCcy := os.Getenv("XE_CCY_TO")
-	if envToCcy == "" {
-		envToCcy = "USD"
-	}
+    if opts.Math != "" {
+        opts.ConvertAmount = HandleMath(opts.Math)
+    }
 
-	flag.StringVarP(&opts.ToCCY, "to-ccy", "t", envToCcy, "Convert TO, defaults to USD (short)")
-	flag.StringVarP(&opts.FromCCY, "from-ccy", "f", envFromCcy, "Convert FROM, defaults to RUB (short)")
-	flag.StringVarP(&opts.RateDate, "date", "d", "", "Date to get the rate for, must be in YYYY-MM-DD format (short)")
-	flag.BoolVarP(&opts.Strip, "strip-extra", "s", false, "Returns only the rate, good for use for shell scripting")
-	flag.Float64VarP(&opts.ConvertAmount, "amount", "a", 0, "Optionally, provide amount to convert")
-	flag.BoolVarP(&opts.Version, "version", "v", false, "Print version information and quit")
-	flag.StringVarP(&opts.Math, "math", "m", "", "Calculate the amount from the expression <expr>, then treat as -a")
-	flag.BoolVarP(&opts.ShowRate, "show-rate", "R", false, "Always show rate")
-	flag.Parse()
+    handleShortFormArgs(&opts)
 
-	if opts.Version {
-		fmt.Println("xe.com version", version)
-		os.Exit(0)
-	}
+    rd, err := ParseDate(opts.RateDate)
+    if err != nil {
+        log.Printf("Wrong date format, must be YYYY-MM-DD, got: %s: %v", opts.RateDate, err)
+        ShowHelp()
+    }
 
-	if opts.Math != "" {
-		opts.ConvertAmount = HandleMath(opts.Math)
-	}
+    rates, err := Crawl(opts.FromCCY, opts.ToCCY, rd)
+    if err != nil {
+        log.Print(err)
+        ShowHelp()
+    }
 
-	// We expect that when called with option flags we get sensible request, but if a short form is used, we need to guess.
-	// So, this here is for catching if options parsing did not yield a sensible result or we have a mixed call,
-	// like xe.com -s FROM TO DATE
-	if len(opts.RateDate) == 0 { // if date is not specified, we will use today's date
-		if len(os.Args) == 2 { // assuming xe.com DATE and default currencies
-			opts.RateDate = os.Args[1]
-		} else if len(os.Args) == 4 { // xe.com FROM TO DATE
-			opts.FromCCY = os.Args[1]
-			opts.ToCCY = os.Args[2]
-			opts.RateDate = os.Args[3]
-		} else if len(os.Args) == 5 && os.Args[1] != "-s" { // xe.com FROM TO DATE AMOUNT
-			opts.FromCCY = os.Args[1]
-			opts.ToCCY = os.Args[2]
-			opts.RateDate = os.Args[3]
-			opts.ConvertAmount, _ = strconv.ParseFloat(os.Args[4], 64)
-		} else if len(os.Args) == 5 { // xe.com -s FROM TO DATE
-			opts.Strip = true
-			opts.FromCCY = os.Args[2]
-			opts.ToCCY = os.Args[3]
-			opts.RateDate = os.Args[4]
-		} else if len(os.Args) == 6 { // xe.com -f FROM -t TO DATE
-			opts.RateDate = os.Args[5]
-		} else { // When all else fails, show help
-			ShowHelp()
-		}
-	}
-
-	rd, err := ParseDate(opts.RateDate)
-
-	if err != nil {
-		log.Print(err, "Wrong date format, must be YYYY-MM-DD, got: ", opts.RateDate)
-		ShowHelp()
-	} else {
-		rates, err = Crawl(opts.FromCCY, opts.ToCCY, rd)
-		if err != nil {
-			log.Print(err)
-			ShowHelp()
-		}
-	}
-
-	// note that we use 8-digit precision here, while we may be getting more than 8 decimals
-	if opts.Strip {
-		fmt.Printf("%.8f", rates.Rate)
-	} else if opts.ConvertAmount > 0 {
-		fmt.Printf("%s %s %.2f = %s %.2f", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
-			opts.ToCCY, opts.ConvertAmount*rates.Rate)
-		if opts.ShowRate {
-			fmt.Printf(" (rate: %.8f)\n", rates.Rate)
-		}
-	} else {
-		fmt.Printf("%s rate: %.8f %s per 1 %s\n", rd, rates.Rate, rates.CcyFrom, rates.CcyTo)
-	}
+    formatOutput(opts, rates)
 }
