@@ -37,6 +37,16 @@ type CurrencyPair struct {
 	RateDate string
 }
 
+// userAgent identifies this tool to xe.com. Colly's default user agent is
+// rejected by xe.com's CDN with a 403, so we send an honest identifying string
+// instead. XE_USER_AGENT overrides it should this one get blocked too.
+func userAgent() string {
+	if ua := os.Getenv("XE_USER_AGENT"); ua != "" {
+		return ua
+	}
+	return "xe.com-cli/" + version
+}
+
 // Crawl fetch a page and parse rate info from it
 func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 	cf = strings.ToUpper(cf)
@@ -45,27 +55,32 @@ func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 
 	c := colly.NewCollector(
 		colly.AllowedDomains("www.xe.com"),
+		colly.UserAgent(userAgent()),
 	)
 
 	var cp CurrencyPair
+	var rateErr error
 
 	c.OnHTML("div#table-section > section > div > div > table > tbody > tr", func(e *colly.HTMLElement) {
 		if e.ChildText("th > a") == ct {
+			rate, err := strconv.ParseFloat(e.ChildText("td:nth-of-type(2)"), 64)
+			if err != nil {
+				rateErr = fmt.Errorf("cannot read the %s/%s rate from xe.com: %w", cf, ct, err)
+				return
+			}
 			cp.CcyFrom = cf
 			cp.CcyTo = ct
 			cp.RateDate = dt
-			rate, err := strconv.ParseFloat(e.ChildText("td:nth-of-type(2)"), 64)
-			if err == nil {
-				cp.Rate = rate
-			} else {
-				log.Fatal(err)
-			}
+			cp.Rate = rate
 		}
 	})
 
-	err := c.Visit(xeUrl)
-	if err != nil {
-		log.Fatal("Unable to fetch ", xeUrl)
+	if err := c.Visit(xeUrl); err != nil {
+		return CurrencyPair{}, fmt.Errorf("unable to fetch %s: %w", xeUrl, err)
+	}
+
+	if rateErr != nil {
+		return CurrencyPair{}, rateErr
 	}
 
 	if cp.CcyFrom != "" {
@@ -205,8 +220,7 @@ func main() {
 	} else {
 		rates, err = Crawl(opts.FromCCY, opts.ToCCY, rd)
 		if err != nil {
-			log.Print(err)
-			ShowHelp()
+			log.Fatal(err)
 		}
 	}
 

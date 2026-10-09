@@ -19,13 +19,29 @@ Short form of `xe.com <DATE>` or `xe.com <FROM> <TO> <DATE>` are also supported.
 
 ## Environment
 
-You can set variable `XE_CCCY_FROM` and `XE_CCY_TO` in order to define your default from/to pair. Add this to
+You can set variables `XE_CCY_FROM` and `XE_CCY_TO` in order to define your default from/to pair. Add this to
 your `.bashrc` to have default pair EUR/USD:
 
 ```shell
 export XE_CCY_FROM=EUR
 export XE_CCY_TO=USD
 ```
+
+`XE_USER_AGENT` overrides the `User-Agent` sent to xe.com. The default identifies this tool
+(`xe.com-cli/<version>`); set your own if xe.com's CDN ever starts rejecting it:
+
+```shell
+export XE_USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+```
+
+## Caveats
+
+xe.com no longer publishes a currency table for RUB, neither as a base nor as a quote currency, so the
+built-in RUB default returns `unable to fetch ...: Not Found`. Set `XE_CCY_FROM`/`XE_CCY_TO` to a pair
+xe.com still carries.
+
+The table for the current day only appears after xe.com's daily fixing (around 16:00 UTC); before that,
+asking for today's date returns `Not Found`.
 
 ## Examples
 
