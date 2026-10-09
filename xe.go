@@ -37,7 +37,7 @@ type CurrencyPair struct {
 	RateDate string
 }
 
-// Crawl fetch page and parse rate info from it
+// Crawl fetch a page and parse rate info from it
 func Crawl(cf string, ct string, dt string) (CurrencyPair, error) {
 	cf = strings.ToUpper(cf)
 	ct = strings.ToUpper(ct)
