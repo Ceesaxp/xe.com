@@ -12,7 +12,7 @@ import (
 
 	flag "github.com/spf13/pflag"
 
-	"github.com/gocolly/colly"
+	"github.com/gocolly/colly/v2"
 )
 
 var version = "0.0.2"
