@@ -127,7 +127,6 @@ func ParseDate(RateDate string) (string, error) {
 		st = st + "-" + match[2] + "-" + match[3]
 
 		_, err := time.Parse("2006-01-02", st)
-
 		if err != nil {
 			log.Print(err)
 			return "", err
@@ -226,7 +225,7 @@ func main() {
 
 	// note that we use 8-digit precision here, while we may be getting more than 8 decimals
 	if opts.Strip {
-		fmt.Printf("%.8f", rates.Rate)
+		fmt.Printf("%.8f\n", rates.Rate)
 	} else if opts.ConvertAmount > 0 {
 		fmt.Printf("%s %s %.2f = %s %.2f", opts.RateDate, opts.FromCCY, opts.ConvertAmount,
 			opts.ToCCY, opts.ConvertAmount*rates.Rate)
